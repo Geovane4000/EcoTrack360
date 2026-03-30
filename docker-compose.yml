@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   mongo:
     image: mongo:6
@@ -20,12 +18,15 @@ services:
     depends_on:
       - mongo
     environment:
-      - MONGODB_CONNECTION=mongodb://root:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
-      - DOTNET_ENVIRONMENT=${DOTNET_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      MONGODB_CONNECTION: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/?authSource=admin
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-EcoTrack360}
+      APP_SEED_ON_STARTUP: ${APP_SEED_ON_STARTUP:-true}
+      DOTNET_ENVIRONMENT: ${DOTNET_ENVIRONMENT:-Development}
     volumes:
       - ./logs:/app/logs
     ports:
-      - "8080:80"
+      - "8080:8080"
     networks:
       - esg-net
 

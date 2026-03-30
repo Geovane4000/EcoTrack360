@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ecotrack360
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: ecotrack360
@@ -14,33 +14,37 @@ spec:
       labels:
         app: ecotrack360
     spec:
-      imagePullSecrets:
-        - name: regcred
       containers:
         - name: ecotrack360
-          image: ${DOCKER_REGISTRY:-your.registry}/ecotrack360:${TAG:-latest}
+          image: your.registry/ecotrack360:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 80
+            - containerPort: 8080
           env:
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
             - name: MONGODB_CONNECTION
               valueFrom:
                 secretKeyRef:
                   name: ecotrack360-secret
                   key: MONGODB_CONNECTION
+            - name: MONGO_DB_NAME
+              value: "EcoTrack360"
+            - name: APP_SEED_ON_STARTUP
+              value: "true"
             - name: DOTNET_ENVIRONMENT
               value: "Production"
           readinessProbe:
             httpGet:
-              path: /health
-              port: 80
-            initialDelaySeconds: 10
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 15
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /health
-              port: 80
+              path: /health/live
+              port: 8080
             initialDelaySeconds: 30
             periodSeconds: 20
             failureThreshold: 5
@@ -62,5 +66,5 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 80
+      targetPort: 8080
   type: ClusterIP

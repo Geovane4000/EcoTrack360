@@ -5,6 +5,7 @@ set -euo pipefail
 NAMESPACE=${1:-default}
 
 echo "Aplicando manifests no namespace: $NAMESPACE"
+kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
 kubectl apply -n $NAMESPACE -f k8s/
 
 echo "Rolando restart nos deployments para forçar pull de imagem (opcional)"

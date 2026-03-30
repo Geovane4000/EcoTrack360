@@ -1,83 +1,116 @@
-`# Projeto - Cidades ESGInteligentes (EcoTrack360)`
+# Projeto - Cidades ESG Inteligentes
 
-Resumo: este repositório contém a aplicação C# (.NET 8) e os artefatos DevOps necessários para entrega do desafio: `Dockerfile`, `docker-compose.yml`, manifests Kubernetes (`k8s/`), pipelines (`.github/workflows/ci-cd.yml`), scripts de deploy e documentação.
+`EcoTrack360` é uma aplicação `.NET 8` com `MongoDB` preparada para demonstração de práticas DevOps de ponta a ponta: build, testes, containerização, orquestração e deploy automatizado.
 
 ## Como executar localmente com Docker
 
-1. Copie `.env.example` para `.env` e ajuste os valores (senha do Mongo, registry, tag).
-2. Subir serviços: `docker compose up --build`
-3. A aplicação estará exposta em `http://localhost:8080` (conforme `docker-compose.yml`).
-4. Logs: `docker compose logs -f app`
+1. Copie `.env.example` para `.env`.
+2. Ajuste os valores de imagem e senha do MongoDB, se necessário.
+3. Execute `docker compose up --build -d`.
+4. Acesse `http://localhost:8080` para ver o resumo da aplicação.
+5. Verifique a saúde da aplicação em `http://localhost:8080/health` e `http://localhost:8080/health/ready`.
+6. Consulte os logs com `docker compose logs -f app`.
 
-Obs: se preferir executar apenas a aplicação sem Mongo local, ajuste `MONGODB_CONNECTION` para apontar a um Mongo existente.
+Endpoints úteis para prints:
+- `GET /`
+- `GET /health`
+- `GET /health/ready`
+- `POST /seed`
 
 ## Pipeline CI/CD
 
-Ferramenta: `GitHub Actions` (arquivo: `.github/workflows/ci-cd.yml`).
+Ferramenta utilizada: `GitHub Actions`.
 
-Fluxo implementado:
-- `build-and-test`: executa `dotnet build` e `dotnet test`.
-- `build-and-push-image`: constrói imagem Docker e faz push para o registry definido por `DOCKER_REGISTRY`.
-- `deploy-staging`: ao push na branch `staging` aplica `k8s/` no namespace `staging` usando `KUBE_CONFIG` (secret do GitHub).
-- `deploy-production`: ao push na branch `main` aplica `k8s/` no namespace `production`.
+Arquivo: `.github/workflows/ci-cd.yml`
 
-Secrets esperados no repositório (Settings → Secrets):
-- `DOCKER_REGISTRY` (ex.: `docker.io/youruser`)
+Etapas implementadas:
+- `build-and-test`: restore, build da solução e execução dos testes automatizados.
+- `build-and-push-image`: gera a imagem Docker e publica no registry configurado.
+- `deploy-staging`: executa deploy automático no namespace `staging` quando houver push na branch `staging`.
+- `deploy-production`: executa deploy automático no namespace `production` quando houver push na branch `master`.
+
+Secrets esperados no repositório:
+- `DOCKER_REGISTRY` — ex.: `docker.io`
 - `DOCKER_USERNAME`
 - `DOCKER_PASSWORD`
-- `DOCKER_IMAGE` (nome da imagem, ex.: `ecotrack360`)
-- `KUBE_CONFIG` (conteúdo do kubeconfig para o cluster gerenciado pelo Rancher/k8s)
-
-Se usar deploy via SSH (opção alternativa), veja `deploy/remote-deploy.sh` e as variáveis `STAGING_*` / `PROD_*` já mencionadas.
+- `DOCKER_IMAGE` — ex.: `seuusuario/ecotrack360`
+- `KUBE_CONFIG` — conteúdo do kubeconfig do cluster
 
 ## Containerização
 
-`Dockerfile` usa multi-stage (SDK -> publish -> Runtime). Imagem base runtime: `mcr.microsoft.com/dotnet/runtime:8.0`.
+O `Dockerfile` utiliza estratégia multi-stage:
+- estágio de build com `mcr.microsoft.com/dotnet/sdk:8.0`
+- estágio final com `mcr.microsoft.com/dotnet/aspnet:8.0`
 
-Estratégia:
-- Build em etapa separada para reduzir tamanho final.
-- Volumes para logs (`./logs` → `/app/logs`) em `docker-compose.yml`.
-- `docker-compose.yml` orquestra `app` + `mongo` com variáveis de ambiente lidas de `.env`.
+Estratégias adotadas:
+- publicação em modo `Release`
+- imagem final menor e pronta para runtime web
+- porta `8080` exposta
+- variáveis de ambiente para conexão com MongoDB e seed inicial
 
-## Orquestração Kubernetes
+O `docker-compose.yml` sobe:
+- `app`
+- `mongo`
 
-Manifests em `k8s/`:
-- `app-deployment.yaml` (Deployment + Service)
-- `mongo-deployment.yaml` (Deployment + PVC + Service)
-- `secret.yaml` (Secret com stringData para credenciais)
-- `ingress.yaml` (exemplo para `ecotrack.local`)
+Também utiliza:
+- `volume` persistente para MongoDB
+- `network` dedicada
+- variáveis de ambiente via `.env`
 
-Use `kubectl apply -f k8s/ -n <namespace>` ou os scripts `deploy/k8s-deploy.sh` / `deploy/k8s-deploy.ps1`.
+## Orquestração
 
-Se estiver usando Rancher, baixe o `kubeconfig` do cluster e armazene no secret `KUBE_CONFIG` do GitHub.
+Os manifests Kubernetes ficam em `k8s/`:
+- `app-deployment.yaml`
+- `mongo-deployment.yaml`
+- `secret.yaml`
+- `ingress.yaml`
 
-## Como preparar entrega (.zip)
+Deploy manual:
+- PowerShell: `./deploy/k8s-deploy.ps1 -Namespace staging`
+- Bash: `./deploy/k8s-deploy.sh staging`
 
-Um script PowerShell foi incluído para gerar o pacote de entrega: `scripts/package-delivery.ps1`.
-Uso:
- - Abra PowerShell na raiz do repositório e execute: `.	emplates\scripts\package-delivery.ps1 -OutputPath .\ecotrack360-delivery.zip`
- (ou simplesmente `.	emplates\scripts\package-delivery.ps1` para gerar `ecotrack360-delivery.zip` na raiz).
+## Prints do funcionamento
 
-O pacote inclui: `Dockerfile`, `docker-compose.yml`, `k8s/`, `src/` (código), `.github/workflows/`, `README.md`, `.env.example`, `deploy/`, `docs/`.
+Para capturar evidências, priorize:
+- execução do workflow no GitHub Actions
+- resultado dos testes
+- `docker compose up`
+- resposta em `http://localhost:8080`
+- resposta em `http://localhost:8080/health/ready`
+- pods e services no Kubernetes com `kubectl get pods,svc -n staging`
+- rollout do deploy em `staging` e `production`
 
-## Prints do funcionamento / Evidências
-
-Inclua capturas de tela em `docs/prints/` e referencie-as no `docs/Presentation.md` ou `docs/Documentation.md` antes de gerar o PDF/PPT final.
+Salve os prints em `docs/prints/` e referencie em `docs/Presentation.md` ou `docs/Documentation.md`.
 
 ## Tecnologias utilizadas
 
-- .NET 8
-- MongoDB
-- Docker / Docker Compose
-- Kubernetes (manifests) / Rancher
-- GitHub Actions
+- `.NET 8`
+- `xUnit`
+- `MongoDB`
+- `Docker`
+- `Docker Compose`
+- `Kubernetes`
+- `GitHub Actions`
+- `PowerShell` e `Bash`
 
-## Scripts úteis
+## Como gerar o pacote .zip
 
-- `deploy/k8s-deploy.sh` / `deploy/k8s-deploy.ps1` — aplica manifests em um namespace.
-- `deploy/remote-deploy.sh` / `deploy/remote-deploy.ps1` — deploy via SSH (copia `docker-compose.yml` + `.env` e executa `docker compose up -d`).
-- `scripts/package-delivery.ps1` — gera `zip` para submissão.
+Execute:
 
-## Checklist e próximos passos
+`./scripts/package-delivery.ps1 -OutputPath ./ecotrack360-delivery.zip`
 
-Veja `CHECKLIST.md` para o checklist de entrega. Antes de compactar, adicione prints em `docs/prints/` e preencha `docs/Presentation.md` com evidências.
+O pacote inclui os principais artefatos do desafio, incluindo aplicação, testes, pipeline, manifests, scripts e documentação.
+
+## Estrutura relevante do projeto
+
+- `EcoTrack360/` — aplicação principal
+- `EcoTrack360.Tests/` — testes automatizados
+- `src/` — pasta auxiliar para checklist da entrega
+- `.github/workflows/` — pipeline CI/CD
+- `k8s/` — manifests Kubernetes
+- `deploy/` — scripts de deploy
+- `docs/` — documentação e prints
+
+## Checklist de entrega
+
+Consulte `CHECKLIST.md` antes de compactar a entrega final.

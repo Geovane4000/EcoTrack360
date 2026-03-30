@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+.vs/
+.git/
+.gitignore
+README.md
+PRINT *.png
+ecotrack360-delivery-test.zip
