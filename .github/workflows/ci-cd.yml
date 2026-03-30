@@ -1,0 +1,89 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ "main", "staging" ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore & Build
+        run: dotnet build --configuration Release
+      - name: Run Tests
+        run: dotnet test --no-build --verbosity normal
+
+  build-and-push-image:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_IMAGE }}:${{ github.sha }}
+            ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_IMAGE }}:latest
+
+  deploy-staging:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Configure Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig
+          chmod 600 kubeconfig
+          echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
+      - name: Ensure namespace exists
+        run: |
+          kubectl get namespace staging || kubectl create namespace staging
+      - name: Apply k8s manifests
+        run: kubectl apply -f k8s/ -n staging
+      - name: Update deployment image
+        run: |
+          kubectl set image deployment/ecotrack360-app ecotrack360=${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_IMAGE }}:${{ github.sha }} -n staging || true
+      - name: Wait rollout
+        run: kubectl rollout status deployment/ecotrack360-app -n staging --timeout=120s || true
+
+  deploy-production:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Configure Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig
+          chmod 600 kubeconfig
+          echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
+      - name: Ensure namespace exists
+        run: |
+          kubectl get namespace production || kubectl create namespace production
+      - name: Apply k8s manifests
+        run: kubectl apply -f k8s/ -n production
+      - name: Update deployment image
+        run: |
+          kubectl set image deployment/ecotrack360-app ecotrack360=${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_IMAGE }}:${{ github.sha }} -n production || true
+      - name: Wait rollout
+        run: kubectl rollout status deployment/ecotrack360-app -n production --timeout=120s || true

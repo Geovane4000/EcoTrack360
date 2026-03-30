@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - esg-net
+
+  app:
+    build: .
+    image: ${DOCKER_REGISTRY:-local}/${DOCKER_IMAGE:-ecotrack360}:${TAG:-latest}
+    depends_on:
+      - mongo
+    environment:
+      - MONGODB_CONNECTION=mongodb://root:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
+      - DOTNET_ENVIRONMENT=${DOTNET_ENVIRONMENT:-Development}
+    volumes:
+      - ./logs:/app/logs
+    ports:
+      - "8080:80"
+    networks:
+      - esg-net
+
+volumes:
+  mongo-data:
+
+networks:
+  esg-net:
+    driver: bridge

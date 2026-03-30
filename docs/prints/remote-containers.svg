@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">
+  <rect width="100%" height="100%" fill="#f3f4f6"/>
+  <text x="50%" y="45%" font-size="20" text-anchor="middle" fill="#374151">Placeholder: remote-containers</text>
+  <text x="50%" y="55%" font-size="14" text-anchor="middle" fill="#6b7280">Substitua por screenshot do host remoto mostrando containers Up</text>
+</svg>

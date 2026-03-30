@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecotrack360-app
+  labels:
+    app: ecotrack360
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ecotrack360
+  template:
+    metadata:
+      labels:
+        app: ecotrack360
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: ecotrack360
+          image: ${DOCKER_REGISTRY:-your.registry}/ecotrack360:${TAG:-latest}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          env:
+            - name: MONGODB_CONNECTION
+              valueFrom:
+                secretKeyRef:
+                  name: ecotrack360-secret
+                  key: MONGODB_CONNECTION
+            - name: DOTNET_ENVIRONMENT
+              value: "Production"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 5
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecotrack360-app-svc
+spec:
+  selector:
+    app: ecotrack360
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
