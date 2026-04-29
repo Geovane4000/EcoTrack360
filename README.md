@@ -25,9 +25,13 @@ Arquivo: `.github/workflows/ci-cd.yml`
 
 Etapas implementadas:
 - `build-and-test`: restore, build da solução e execução dos testes automatizados.
-- `build-and-push-image`: gera a imagem Docker e publica no registry configurado.
+- `build-and-push-image`: gera a imagem Docker; publica no registry quando os secrets Docker estiverem configurados.
 - `deploy-staging`: executa deploy automático no namespace `staging` quando houver push na branch `staging`.
 - `deploy-production`: executa deploy automático no namespace `production` quando houver push na branch `master`.
+
+Comportamento sem secrets:
+- se faltarem `DOCKER_*`, o workflow faz apenas build da imagem (sem push), para não falhar o pipeline.
+- se faltar `KUBE_CONFIG` ou dados de imagem, os jobs de deploy são pulados.
 
 Secrets esperados no repositório:
 - `DOCKER_REGISTRY` — ex.: `docker.io`
@@ -86,12 +90,77 @@ Salve os prints em `docs/prints/` e referencie em `docs/Presentation.md` ou `doc
 
 - `.NET 8`
 - `xUnit`
+- `Reqnroll (BDD com Gherkin)`
+- `FluentAssertions`
+- `NJsonSchema`
 - `MongoDB`
 - `Docker`
 - `Docker Compose`
 - `Kubernetes`
 - `GitHub Actions`
 - `PowerShell` e `Bash`
+
+## Testes automatizados (BDD + API + contrato)
+
+O projeto de testes (`EcoTrack360.Tests`) cobre:
+
+- Cenários BDD em Gherkin (`Features/*.feature`)
+- Testes de API (status code e payload JSON)
+- Testes de contrato com JSON Schema
+
+Cenários implementados incluem caminhos:
+
+- **Positivos (Mongo online):** readiness e seed
+- **Negativos (Mongo offline):** readiness e seed com `503` + `ProblemDetails`
+
+### Executar localmente
+
+1. Restore e build:
+
+`dotnet restore && dotnet build`
+
+2. Defina a conexão de teste para o Mongo ligado (se necessário):
+
+PowerShell:
+
+`$env:MONGO_TEST_CONN="mongodb://localhost:27017"`
+
+3. Execute os testes:
+
+`dotnet test`
+
+4. (Opcional) Gerar resultado TRX:
+
+`dotnet test --logger "trx"`
+
+### Arquivos principais dos testes
+
+- `EcoTrack360.Tests/Features/SummaryAndHealth.feature`
+- `EcoTrack360.Tests/Features/Readiness.feature`
+- `EcoTrack360.Tests/Features/Seed.feature`
+- `EcoTrack360.Tests/StepDefinitions/ApiStepDefinitions.cs`
+- `EcoTrack360.Tests/ApiContractTests.cs`
+
+## CI para testes
+
+Além do workflow principal de CI/CD, foi adicionado um workflow dedicado para validação rápida de build + testes:
+
+- `.github/workflows/ci.yml`
+
+Esse workflow:
+
+1. Faz checkout do código
+2. Instala .NET 8
+3. Sobe MongoDB como serviço
+4. Executa restore, build e testes
+5. Publica artefato de resultado (`*.trx`)
+
+## Checklist de evidências (PDF/PPT)
+
+- Print dos cenários `.feature`
+- Print da execução local do `dotnet test`
+- Print da execução do workflow no GitHub Actions
+- Resultado final com total de testes aprovados
 
 ## Como gerar o pacote .zip
 
@@ -111,6 +180,3 @@ O pacote inclui os principais artefatos do desafio, incluindo aplicação, teste
 - `deploy/` — scripts de deploy
 - `docs/` — documentação e prints
 
-## Checklist de entrega
-
-Consulte `CHECKLIST.md` antes de compactar a entrega final.

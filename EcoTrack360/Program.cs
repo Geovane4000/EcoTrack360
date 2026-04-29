@@ -47,12 +47,24 @@ app.MapGet("/health/ready", async (MongoContext mongoContext, CancellationToken 
 
 app.MapPost("/seed", async (MongoContext mongoContext, CancellationToken cancellationToken) =>
 {
-	var seeded = await mongoContext.SeedIfEmptyAsync(cancellationToken);
-	return Results.Ok(new
+    if (!await mongoContext.CanConnectAsync(cancellationToken))
 	{
-		seeded,
-		database = mongoContext.DatabaseName
-	});
+		return Results.Problem("MongoDB indisponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
+	}
+
+	try
+	{
+		var seeded = await mongoContext.SeedIfEmptyAsync(cancellationToken);
+		return Results.Ok(new
+		{
+			seeded,
+			database = mongoContext.DatabaseName
+		});
+	}
+	catch
+	{
+		return Results.Problem("Falha ao executar seed no MongoDB.", statusCode: StatusCodes.Status503ServiceUnavailable);
+	}
 });
 
 await app.Services.GetRequiredService<MongoContext>().TrySeedOnStartupAsync(app.Logger, app.Lifetime.ApplicationStopping);
@@ -127,6 +139,10 @@ public sealed class MongoSettings
 			SeedOnStartup = seedOnStartup
 		};
 	}
+}
+
+public partial class Program
+{
 }
 
 public sealed class MongoContext
